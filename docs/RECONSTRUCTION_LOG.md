@@ -20,9 +20,9 @@
 
 - 表示项目从系统 TTS 转向 sherpa-onnx 离线 TTS 的阶段。
 
-### b4f5739 reconstructed: add Amy and af_sarah voice selection
+### b4f5739 reconstructed: add temporary multi-voice selection
 
-- 表示在设置中加入 Amy 与 af_sarah 两个音色，并做持久化。
+- 表示项目曾短暂加入多音色选择并做持久化，后续已经收敛回 Amy-only 路线。
 
 ### 833b8e7 reconstructed: harden TTS asset loading and voice-call playback
 

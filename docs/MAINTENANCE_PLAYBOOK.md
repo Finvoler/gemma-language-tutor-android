@@ -77,7 +77,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 最少回归场景：
 
 1. 切到 Amy，触发一次普通播报。
-2. 切到 af_sarah，触发一次普通播报。
+2. 调整 Amy speed 或 Amy liveliness 后，再触发一次普通播报。
 3. 打开语音通话，连续完成至少两轮识别和回复播报。
 4. 中途关闭再重新打开语音通话，确认不会闪退。
 

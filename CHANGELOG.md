@@ -5,7 +5,7 @@
 ### Added
 
 - Android Gemma 4 本地语言学习助手当前源码快照。
-- sherpa-onnx 离线 TTS，支持 Amy (Piper) 与 af_sarah (Kokoro) 两个音色。
+- sherpa-onnx 离线 TTS，当前保留 Amy (Piper) 并支持语速、活泼度调节。
 - TTS 模型下载脚本与 Gemma 模型下载说明。
 - 问题与修复日志、维护手册、重建时间线。
 

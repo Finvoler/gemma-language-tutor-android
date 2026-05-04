@@ -1291,7 +1291,7 @@ public class MainActivity extends Activity {
         amyConfig.addView(makeConfigFloatSliderRow("Amy liveliness", 0.70f, 1.40f, configAmyVivacity, amyVivacityRef));
 
         TextView ttsHint = new TextView(this);
-        ttsHint.setText("Sarah/Kokoro 已经从设置和 APK 打包中移除，避免继续拉高包体积。\nAmy speed 越高，语速越快；Amy liveliness 越高，语气越活泼。\n修改后新的语音回复会立即使用更新后的参数。\n");
+        ttsHint.setText("旧双音色配置已经从设置和 APK 打包中移除，避免继续拉高包体积。\nAmy speed 越高，语速越快；Amy liveliness 越高，语气越活泼。\n修改后新的语音回复会立即使用更新后的参数。\n");
         ttsHint.setTextColor(Color.rgb(60, 80, 120));
         ttsHint.setTextSize(12);
         LinearLayout.LayoutParams ttsHintParams = new LinearLayout.LayoutParams(-1, -2);

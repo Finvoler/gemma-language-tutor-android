@@ -7,7 +7,8 @@
 - 当前 Android 应用完整源码快照。
 - Gemma 4 模型下载说明与本地导入说明。
 - sherpa-onnx 离线 TTS 集成。
-- Amy (Piper) 与 af_sarah (Kokoro) 两个音色选择。
+- Amy (Piper) 单音色离线 TTS，以及可调的 speed / liveliness 参数。
+- 旧多音色路径已从设置与 APK 打包内容中移除，避免继续拉高包体。
 - 语音通话场景下的 TTS 稳定性修复。
 - 问题日志、维护手册、重建历史说明。
 
@@ -24,5 +25,5 @@
 ## 交付说明
 
 - 本 Release 附带 debug APK，便于直接回装验证。
-- Gemma 4 主模型与超大 TTS 权重未打进仓库，需要按 README 下载。
+- Gemma 4 主模型与离线 TTS 资源未打进仓库，需要按 README 下载。
 - 部分历史提交为 reconstructed 里程碑，用于补齐维护线索，不等同于最初开发阶段的真实逐次提交。

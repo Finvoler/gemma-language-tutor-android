@@ -25,12 +25,12 @@ Gemma 4 官方/下载入口：
 当前版本使用 sherpa-onnx 离线 TTS，而不是 Android 系统 TextToSpeech。
 
 - Amy：Piper 英文单说话人模型，资源目录为 `app/src/main/assets/tts-model`
-- af_sarah：Kokoro 英文多说话人模型中的 `speaker id = 3`，资源目录为 `app/src/main/assets/tts-model-kokoro-en`
+- 语音回复与语音通话当前统一使用 Amy，不再提供旧多音色选项
+- 设置中可以直接调 `Amy speed` 和 `Amy liveliness`
 - TTS 运行时会把 `espeak-ng-data` 复制到应用私有目录后再传给 sherpa-onnx，避免 Android assets 路径导致的 native 初始化问题
 
 这些 TTS 权重文件比较大，不能直接提交到普通 GitHub 仓库：
 
-- `app/src/main/assets/tts-model-kokoro-en/model.onnx` 约 330 MB
 - `app/src/main/assets/tts-model/en_US-amy-medium.onnx` 约 60 MB
 
 因此仓库默认不跟踪这些模型文件。首次 clone 后，请先下载 TTS 资源：
@@ -42,7 +42,6 @@ Gemma 4 官方/下载入口：
 相关模型来源：
 
 - sherpa-onnx TTS Releases：<https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models>
-- Kokoro 英文模型说明：<https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/kokoro.html>
 - Piper/VITS 模型说明：<https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/vits.html>
 
 ## 功能
@@ -54,7 +53,7 @@ Gemma 4 官方/下载入口：
 - 图片：上传图片后，让 Gemma 识别图片文字或场景并翻译讲解。
 - 日常英语对话：按钮切换后，每次回答都会以 `Do you mean "..."?` 开头，先把你的话改写成自然英语，再继续引导对话。
 - 语音输入：调用 Android SpeechRecognizer；对话模式下识别完成会自动发送。
-- 离线 TTS：使用 sherpa-onnx，在设置中可切换 `Amy (Piper)` 与 `af_sarah (Kokoro)`。
+- 离线 TTS：使用 sherpa-onnx，当前固定为 `Amy (Piper)`，并支持调节语速和活泼度。
 - 语音通话：识别完成后自动发给 Gemma，回复文本落屏后再由本地离线 TTS 分段播报。
 
 ## 构建 APK
@@ -116,4 +115,4 @@ models\gemma-4-E2B-it.litertlm
 
 - Gemma 4 `.litertlm`：通过 App 内下载或 `scripts/download-gemma4-model.ps1` 获取
 - sherpa-onnx TTS `.onnx` / `.bin`：通过 `scripts/download-tts-models.ps1` 获取
-- 之所以这样做，是因为 GitHub 普通仓库对单文件大小有限制，Kokoro 主模型超过 100 MB，无法直接正常推送
+- 之所以这样做，是为了保持源码仓库精简稳定，避免把模型资源和应用源码混在一起管理
