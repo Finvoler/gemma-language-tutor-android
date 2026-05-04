@@ -33,8 +33,12 @@ import java.util.concurrent.Future;
 public class SherpaOnnxTts {
 
     private static final String TAG = "SherpaOnnxTts";
-    private static final int MAX_TOTAL_SPEECH_CHARS = 700;
-    private static final int MAX_CHUNK_CHARS = 180;
+    private static final int MAX_TOTAL_SPEECH_CHARS_PIPER = 700;
+    private static final int MAX_TOTAL_SPEECH_CHARS_KOKORO = 420;
+    private static final int FIRST_CHUNK_CHARS_PIPER = 180;
+    private static final int FIRST_CHUNK_CHARS_KOKORO = 70;
+    private static final int NEXT_CHUNK_CHARS_PIPER = 180;
+    private static final int NEXT_CHUNK_CHARS_KOKORO = 110;
 
     public enum VoiceProfile {
         PIPER_AMY("piper_amy", "Amy (Piper)", false, "tts-model", "en_US-amy-medium.onnx", "", 0),
@@ -99,11 +103,14 @@ public class SherpaOnnxTts {
     private final Context appContext;
     private final AssetManager assetManager;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService prewarmExecutor = Executors.newSingleThreadExecutor();
 
     private OfflineTts tts;
     private VoiceProfile loadedProfile;
+    private VoiceProfile warmedProfile;
     private AudioTrack audioTrack;
     private Future<?> currentTask;
+    private Future<?> warmupTask;
     private volatile boolean stopped;
     private volatile VoiceProfile voiceProfile;
 
@@ -236,6 +243,21 @@ public class SherpaOnnxTts {
         return voiceProfile;
     }
 
+    public synchronized void prepare() {
+        VoiceProfile profile = voiceProfile;
+        if (profile == null) {
+            profile = VoiceProfile.PIPER_AMY;
+        }
+        if (warmedProfile == profile) {
+            return;
+        }
+        if (warmupTask != null && !warmupTask.isDone()) {
+            return;
+        }
+        VoiceProfile targetProfile = profile;
+        warmupTask = prewarmExecutor.submit(() -> warmUpProfile(targetProfile));
+    }
+
     /** Speak the given text asynchronously. Cancels any ongoing speech first. */
     public void speak(String text) {
         if (text == null || text.trim().isEmpty()) return;
@@ -245,10 +267,11 @@ public class SherpaOnnxTts {
             try {
                 VoiceProfile profile = voiceProfile;
                 OfflineTts engine = getOrInitTts(profile);
-                List<String> chunks = splitForSpeech(text);
+                List<String> chunks = splitForSpeech(text, profile);
                 for (String chunk : chunks) {
                     if (stopped) return;
                     GeneratedAudio audio = engine.generate(chunk, profile.getSpeakerId(), 1.0f);
+                    warmedProfile = profile;
                     if (stopped) return;
                     playAudio(audio.getSamples(), audio.getSampleRate());
                 }
@@ -258,12 +281,25 @@ public class SherpaOnnxTts {
         });
     }
 
-    private List<String> splitForSpeech(String text) {
+    private void warmUpProfile(VoiceProfile profile) {
+        try {
+            OfflineTts engine = getOrInitTts(profile);
+            engine.generate(profile.isKokoro() ? "Hello." : "Hi.", profile.getSpeakerId(), 1.0f);
+            warmedProfile = profile;
+        } catch (Throwable t) {
+            Log.w(TAG, "TTS prewarm failed for " + profile.getKey(), t);
+        }
+    }
+
+    private List<String> splitForSpeech(String text, VoiceProfile profile) {
         String cleaned = cleanForSpeech(text);
         List<String> chunks = new ArrayList<>();
         if (cleaned.isEmpty()) return chunks;
-        if (cleaned.length() > MAX_TOTAL_SPEECH_CHARS) {
-            cleaned = cleaned.substring(0, MAX_TOTAL_SPEECH_CHARS).trim() + ".";
+        int maxTotalChars = profile != null && profile.isKokoro()
+                ? MAX_TOTAL_SPEECH_CHARS_KOKORO
+                : MAX_TOTAL_SPEECH_CHARS_PIPER;
+        if (cleaned.length() > maxTotalChars) {
+            cleaned = cleaned.substring(0, maxTotalChars).trim() + ".";
         }
 
         String[] sentences = cleaned.split("(?<=[.!?。！？])\\s+");
@@ -271,13 +307,15 @@ public class SherpaOnnxTts {
         for (String sentence : sentences) {
             String safeSentence = sentence.trim();
             if (safeSentence.isEmpty()) continue;
-            if (safeSentence.length() > MAX_CHUNK_CHARS) {
+            int activeLimit = getChunkCharLimit(profile, chunks.isEmpty() && current.length() == 0);
+            if (safeSentence.length() > activeLimit) {
                 flushChunk(chunks, current);
-                splitLongSentence(chunks, safeSentence);
+                splitLongSentence(chunks, safeSentence, profile);
                 continue;
             }
-            if (current.length() > 0 && current.length() + 1 + safeSentence.length() > MAX_CHUNK_CHARS) {
+            if (current.length() > 0 && current.length() + 1 + safeSentence.length() > activeLimit) {
                 flushChunk(chunks, current);
+                activeLimit = getChunkCharLimit(profile, chunks.isEmpty());
             }
             if (current.length() > 0) current.append(' ');
             current.append(safeSentence);
@@ -300,15 +338,24 @@ public class SherpaOnnxTts {
                 .trim();
     }
 
-    private void splitLongSentence(List<String> chunks, String sentence) {
+    private void splitLongSentence(List<String> chunks, String sentence, VoiceProfile profile) {
         int start = 0;
         while (start < sentence.length()) {
-            int end = Math.min(sentence.length(), start + MAX_CHUNK_CHARS);
+            int limit = getChunkCharLimit(profile, chunks.isEmpty());
+            int end = Math.min(sentence.length(), start + limit);
             int breakAt = findBreakPosition(sentence, start, end);
             chunks.add(sentence.substring(start, breakAt).trim());
             start = breakAt;
             while (start < sentence.length() && Character.isWhitespace(sentence.charAt(start))) start++;
         }
+    }
+
+    private int getChunkCharLimit(VoiceProfile profile, boolean firstChunk) {
+        boolean kokoro = profile != null && profile.isKokoro();
+        if (firstChunk) {
+            return kokoro ? FIRST_CHUNK_CHARS_KOKORO : FIRST_CHUNK_CHARS_PIPER;
+        }
+        return kokoro ? NEXT_CHUNK_CHARS_KOKORO : NEXT_CHUNK_CHARS_PIPER;
     }
 
     private int findBreakPosition(String text, int start, int maxEnd) {
@@ -426,6 +473,7 @@ public class SherpaOnnxTts {
     public void shutdown() {
         stop();
         executor.shutdownNow();
+        prewarmExecutor.shutdownNow();
         synchronized (this) {
             releaseTtsLocked();
         }
@@ -437,5 +485,6 @@ public class SherpaOnnxTts {
             tts = null;
         }
         loadedProfile = null;
+        warmedProfile = null;
     }
 }

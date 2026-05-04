@@ -23,14 +23,16 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 
 import android.text.Spanned;
+import android.view.ActionMode;
 import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.text.InputType;
 import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
-import android.text.method.LinkMovementMethod;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.SeekBar;
@@ -134,6 +136,7 @@ public class MainActivity extends Activity {
     private int dotCount;
     private int nextHistoryId = 1;
     private int currentHistoryId = -1;
+    private Toast activeCopyToast;
 
     private final StringBuilder transcript = new StringBuilder();
     private final ArrayList<ChatMessage> currentConversationMessages = new ArrayList<>();
@@ -694,6 +697,7 @@ public class MainActivity extends Activity {
         voiceCallOpen = true;
         refreshVoiceCallChip();
         voiceCallOverlay.setVisibility(View.VISIBLE);
+        if (sherpaOnnxTts != null) sherpaOnnxTts.prepare();
         if (voiceCallStatusView != null) {
             voiceCallStatusView.setText("使用本地语音识别 + 本地 TTS。你说完会直接发给 LLM，助手会语音回复。");
         }
@@ -767,6 +771,7 @@ public class MainActivity extends Activity {
         copy.setTextColor(user ? Color.rgb(248, 242, 234) : Color.rgb(35, 43, 39));
         copy.setTextSize(14);
         copy.setLineSpacing(dp(3), 1.0f);
+        configureSelectableMessageText(copy);
         LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(-1, -2);
         copyParams.topMargin = dp(6);
         if (user) {
@@ -1088,6 +1093,7 @@ public class MainActivity extends Activity {
     private void applySelectedTtsVoice() {
         if (sherpaOnnxTts != null) {
             sherpaOnnxTts.setVoiceProfile(resolveSelectedTtsVoiceProfile());
+            sherpaOnnxTts.prepare();
         }
         if (voiceCallStatusView != null) {
             voiceCallStatusView.setText("使用本地语音识别 + 本地离线 TTS（当前音色：" + currentTtsVoiceDisplayName() + "）。你说完会直接发给 LLM，助手会语音回复。");
@@ -1527,7 +1533,6 @@ public class MainActivity extends Activity {
         }
         TextView message = messageText(text, true);
         bubble.addView(message);
-        attachBubbleCopyListener(bubble, text);
         row.addView(bubble);
         applyTypefaceRecursively(row);
         chatList.addView(row);
@@ -1540,31 +1545,12 @@ public class MainActivity extends Activity {
         TextView message = messageText(text, false);
         renderRichText(message, text, false);
         bubble.setTag(text);
-        attachBubbleCopyListener(bubble, null);
         bubble.addView(message);
         row.addView(bubble);
         applyTypefaceRecursively(row);
         chatList.addView(row);
         scrollToBottom();
         return returnTextView ? message : message;
-    }
-
-    /** Long-press anywhere on a chat bubble to copy its text to the clipboard. */
-    private void attachBubbleCopyListener(LinearLayout bubble, String fixedText) {
-        bubble.setOnLongClickListener(v -> {
-            String raw = fixedText;
-            if (raw == null) {
-                Object tag = bubble.getTag();
-                raw = tag instanceof String ? (String) tag : "";
-            }
-            if (raw.isEmpty()) return false;
-            android.content.ClipboardManager cm =
-                    (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-            if (cm == null) return false;
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("message", raw));
-            Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
-            return true;
-        });
     }
 
     private LinearLayout messageRow(boolean user) {
@@ -1593,11 +1579,72 @@ public class MainActivity extends Activity {
         view.setTextColor(user ? Color.WHITE : Color.rgb(35, 43, 39));
         view.setTextSize(15);
         view.setLineSpacing(dp(2), 1.0f);
-        view.setLinksClickable(true);
-        view.setMovementMethod(LinkMovementMethod.getInstance());
+        configureSelectableMessageText(view);
         view.setTypeface(user ? uiMediumTypeface : uiRegularTypeface);
         if (user) view.setText(text);
         return view;
+    }
+
+    private void configureSelectableMessageText(TextView view) {
+        view.setTextIsSelectable(true);
+        view.setLongClickable(true);
+        view.setFocusable(true);
+        view.setFocusableInTouchMode(true);
+        view.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
+            @Override
+            public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                filterMessageSelectionMenu(menu);
+                return true;
+            }
+
+            @Override
+            public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                filterMessageSelectionMenu(menu);
+                return true;
+            }
+
+            @Override
+            public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                if (item.getItemId() == android.R.id.copy) {
+                    mainHandler.post(() -> showCopySuccessToast("复制成功"));
+                }
+                return false;
+            }
+
+            @Override
+            public void onDestroyActionMode(ActionMode mode) {
+            }
+        });
+    }
+
+    private void filterMessageSelectionMenu(Menu menu) {
+        for (int i = menu.size() - 1; i >= 0; i--) {
+            MenuItem item = menu.getItem(i);
+            int itemId = item.getItemId();
+            boolean keep = itemId == android.R.id.copy || itemId == android.R.id.selectAll;
+            if (!keep) {
+                menu.removeItem(itemId);
+            }
+        }
+    }
+
+    private void showCopySuccessToast(String message) {
+        if (activeCopyToast != null) {
+            activeCopyToast.cancel();
+        }
+        TextView toastView = new TextView(this);
+        toastView.setText(message);
+        toastView.setTextColor(Color.WHITE);
+        toastView.setTextSize(14);
+        toastView.setTypeface(uiMediumTypeface != null ? uiMediumTypeface : Typeface.DEFAULT_BOLD);
+        toastView.setPadding(dp(18), dp(12), dp(18), dp(12));
+        toastView.setBackground(makeRoundBg(Color.argb(235, 36, 53, 47), dp(18), Color.argb(70, 255, 255, 255), 1));
+        Toast toast = new Toast(getApplicationContext());
+        toast.setDuration(Toast.LENGTH_SHORT);
+        toast.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, dp(108));
+        toast.setView(toastView);
+        toast.show();
+        activeCopyToast = toast;
     }
 
     private void renderRichText(TextView view, String text, boolean user) {
