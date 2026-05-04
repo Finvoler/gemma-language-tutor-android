@@ -1,0 +1,11 @@
+.gradle/
+.gradle-local/
+.android-sdk/
+.kotlin/
+app/build/
+*.apk
+local.properties
+models/
+_download_tmp/
+app/src/main/assets/tts-model/
+app/src/main/assets/tts-model-kokoro-en/
