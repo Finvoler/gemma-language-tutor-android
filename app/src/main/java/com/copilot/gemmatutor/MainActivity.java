@@ -72,6 +72,8 @@ public class MainActivity extends Activity {
     private static final String PREF_TOP_P = "top_p";
     private static final String PREF_TEMPERATURE = "temperature";
     private static final String PREF_TTS_VOICE = "tts_voice";
+    private static final String PREF_TTS_AMY_SPEED = "tts_amy_speed";
+    private static final String PREF_TTS_AMY_VIVACITY = "tts_amy_vivacity";
     private static final int REQUEST_IMPORT_MODEL = 1001;
     private static final int REQUEST_PICK_IMAGE = 1002;
     private static final int REQUEST_CAPTURE_IMAGE = 1003;
@@ -127,6 +129,8 @@ public class MainActivity extends Activity {
     private int configTopK = 64;
     private float configTopP = 0.95f;
     private float configTemperature = 1.0f;
+    private float configAmySpeed = 1.0f;
+    private float configAmyVivacity = 1.0f;
     private String selectedTtsVoiceKey = SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey();
     private boolean voiceCallOpen;
     private boolean restoreConversationModeAfterCall;
@@ -197,6 +201,7 @@ public class MainActivity extends Activity {
         loadHistoryEntries();
         buildUi();
         sherpaOnnxTts = new SherpaOnnxTts(this, resolveSelectedTtsVoiceProfile());
+        sherpaOnnxTts.setAmyStyle(configAmySpeed, configAmyVivacity);
         setupSpeechRecognizer();
         String welcome = "你好，我是你的本地语言学习助手。导入或下载 Gemma 4 E2B 模型后，我可以离线处理翻译、近义词、图片文字和英语口语练习。";
         addAssistantMessage(welcome, false);
@@ -1081,9 +1086,8 @@ public class MainActivity extends Activity {
     private void setupTts() { /* replaced by SherpaOnnxTts */ }
 
     private SherpaOnnxTts.VoiceProfile resolveSelectedTtsVoiceProfile() {
-        SherpaOnnxTts.VoiceProfile profile = SherpaOnnxTts.VoiceProfile.fromKey(selectedTtsVoiceKey);
-        selectedTtsVoiceKey = profile.getKey();
-        return profile;
+        selectedTtsVoiceKey = SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey();
+        return SherpaOnnxTts.VoiceProfile.PIPER_AMY;
     }
 
     private String currentTtsVoiceDisplayName() {
@@ -1100,6 +1104,7 @@ public class MainActivity extends Activity {
 
     private void applySelectedTtsVoice() {
         if (sherpaOnnxTts != null) {
+            sherpaOnnxTts.setAmyStyle(configAmySpeed, configAmyVivacity);
             sherpaOnnxTts.setVoiceProfile(resolveSelectedTtsVoiceProfile());
             sherpaOnnxTts.prepare(resolveSelectedTtsVoiceProfile());
         }
@@ -1116,7 +1121,9 @@ public class MainActivity extends Activity {
         configTopK = prefs.getInt(PREF_TOP_K, 64);
         configTopP = prefs.getFloat(PREF_TOP_P, 0.95f);
         configTemperature = prefs.getFloat(PREF_TEMPERATURE, 1.0f);
-        selectedTtsVoiceKey = prefs.getString(PREF_TTS_VOICE, SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey());
+        configAmySpeed = prefs.getFloat(PREF_TTS_AMY_SPEED, 1.0f);
+        configAmyVivacity = prefs.getFloat(PREF_TTS_AMY_VIVACITY, 1.0f);
+        selectedTtsVoiceKey = SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey();
     }
 
     private void persistUiPreferences() {
@@ -1128,7 +1135,9 @@ public class MainActivity extends Activity {
                 .putInt(PREF_TOP_K, configTopK)
                 .putFloat(PREF_TOP_P, configTopP)
                 .putFloat(PREF_TEMPERATURE, configTemperature)
-                .putString(PREF_TTS_VOICE, selectedTtsVoiceKey)
+                .putString(PREF_TTS_VOICE, SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey())
+                .putFloat(PREF_TTS_AMY_SPEED, configAmySpeed)
+                .putFloat(PREF_TTS_AMY_VIVACITY, configAmyVivacity)
                 .apply();
     }
 
@@ -1257,48 +1266,32 @@ public class MainActivity extends Activity {
         ttsLabel.setTypeface(uiMediumTypeface);
         ttsSection.addView(ttsLabel);
 
-        final String[] ttsVoiceRef = {selectedTtsVoiceKey};
+        final float[] amySpeedRef = {configAmySpeed};
+        final float[] amyVivacityRef = {configAmyVivacity};
 
-        LinearLayout ttsRow = new LinearLayout(this);
-        LinearLayout.LayoutParams ttsRowParams = new LinearLayout.LayoutParams(-2, dp(40));
-        ttsRowParams.topMargin = dp(8);
-        ttsSection.addView(ttsRow, ttsRowParams);
+        TextView ttsBadge = new TextView(this);
+        ttsBadge.setText("当前仅保留 Amy (Piper)");
+        ttsBadge.setTextColor(Color.rgb(36, 53, 47));
+        ttsBadge.setTextSize(13);
+        ttsBadge.setTypeface(uiMediumTypeface);
+        ttsBadge.setPadding(dp(12), dp(8), dp(12), dp(8));
+        ttsBadge.setBackground(makeRoundBg(Color.WHITE, dp(18), Color.rgb(175, 195, 220), 1));
+        LinearLayout.LayoutParams ttsBadgeParams = new LinearLayout.LayoutParams(-2, -2);
+        ttsBadgeParams.topMargin = dp(8);
+        ttsSection.addView(ttsBadge, ttsBadgeParams);
 
-        Button amyBtn = new Button(this);
-        amyBtn.setAllCaps(false);
-        amyBtn.setText("Amy");
-        amyBtn.setTextSize(14);
-        amyBtn.setPadding(dp(16), 0, dp(16), 0);
-        ttsRow.addView(amyBtn, new LinearLayout.LayoutParams(-2, dp(40)));
+        LinearLayout.LayoutParams amyConfigParams = new LinearLayout.LayoutParams(-1, -2);
+        amyConfigParams.topMargin = dp(10);
+        LinearLayout amyConfig = new LinearLayout(this);
+        amyConfig.setOrientation(LinearLayout.VERTICAL);
+        amyConfig.setLayoutParams(amyConfigParams);
+        ttsSection.addView(amyConfig);
 
-        Button sarahBtn = new Button(this);
-        sarahBtn.setAllCaps(false);
-        sarahBtn.setText("af_sarah");
-        sarahBtn.setTextSize(14);
-        sarahBtn.setPadding(dp(16), 0, dp(16), 0);
-        LinearLayout.LayoutParams sarahBtnParams = new LinearLayout.LayoutParams(-2, dp(40));
-        sarahBtnParams.leftMargin = dp(8);
-        ttsRow.addView(sarahBtn, sarahBtnParams);
-
-        Runnable refreshTtsButtons = () -> {
-            boolean amySelected = SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey().equals(ttsVoiceRef[0]);
-            styleConfigSegmentButton(amyBtn, amySelected);
-            styleConfigSegmentButton(sarahBtn, !amySelected);
-            amyBtn.setText(amySelected ? "\u2713  Amy" : "Amy");
-            sarahBtn.setText(!amySelected ? "\u2713  af_sarah" : "af_sarah");
-        };
-        amyBtn.setOnClickListener(v -> {
-            ttsVoiceRef[0] = SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey();
-            refreshTtsButtons.run();
-        });
-        sarahBtn.setOnClickListener(v -> {
-            ttsVoiceRef[0] = SherpaOnnxTts.VoiceProfile.KOKORO_AF_SARAH.getKey();
-            refreshTtsButtons.run();
-        });
-        refreshTtsButtons.run();
+        amyConfig.addView(makeConfigFloatSliderRow("Amy speed", 0.75f, 1.35f, configAmySpeed, amySpeedRef));
+        amyConfig.addView(makeConfigFloatSliderRow("Amy liveliness", 0.70f, 1.40f, configAmyVivacity, amyVivacityRef));
 
         TextView ttsHint = new TextView(this);
-        ttsHint.setText("Amy 是当前 Piper 音色；af_sarah 使用 Kokoro 多说话人模型，听感会更明显区别于系统 TTS。\n切换音色后，新的语音回复会立即使用所选离线模型。\n注意：af_sarah 会显著增大 APK 体积。\n");
+        ttsHint.setText("Sarah/Kokoro 已经从设置和 APK 打包中移除，避免继续拉高包体积。\nAmy speed 越高，语速越快；Amy liveliness 越高，语气越活泼。\n修改后新的语音回复会立即使用更新后的参数。\n");
         ttsHint.setTextColor(Color.rgb(60, 80, 120));
         ttsHint.setTextSize(12);
         LinearLayout.LayoutParams ttsHintParams = new LinearLayout.LayoutParams(-1, -2);
@@ -1367,24 +1360,27 @@ public class MainActivity extends Activity {
         okBtn.setPadding(dp(20), 0, dp(20), 0);
         okBtn.setOnClickListener(v -> {
             boolean shouldReloadModel = !safeEquals(configAccelerator, acceleratorRef[0]) || configMaxTokens != maxTokRef[0];
-            boolean shouldSwitchTtsVoice = !safeEquals(selectedTtsVoiceKey, ttsVoiceRef[0]);
+            boolean shouldRefreshAmyTts = Math.abs(configAmySpeed - amySpeedRef[0]) > 0.001f
+                    || Math.abs(configAmyVivacity - amyVivacityRef[0]) > 0.001f;
             configAccelerator = acceleratorRef[0];
             configMaxTokens = maxTokRef[0];
             configTopK = topKRef[0];
             configTopP = topPRef[0];
             configTemperature = tempRef[0];
+            configAmySpeed = amySpeedRef[0];
+            configAmyVivacity = amyVivacityRef[0];
             thinkingEnabled = thinkSwitch.isChecked();
-            selectedTtsVoiceKey = ttsVoiceRef[0];
+            selectedTtsVoiceKey = SherpaOnnxTts.VoiceProfile.PIPER_AMY.getKey();
             persistUiPreferences();
             dialog.dismiss();
-            if (shouldSwitchTtsVoice) {
+            if (shouldRefreshAmyTts) {
                 applySelectedTtsVoice();
             }
             if (shouldReloadModel && ModelStore.hasModel(this)) {
                 loadModelIfAvailable();
                 Toast.makeText(this, "\u914d\u7f6e\u5df2\u4fdd\u5b58，\u6b63\u5728\u91cd\u65b0\u52a0\u8f7d\u6a21\u578b", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, shouldSwitchTtsVoice ? "TTS 音色已切换" : "\u914d\u7f6e\u5df2\u4fdd\u5b58", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, shouldRefreshAmyTts ? "Amy 语音参数已更新" : "\u914d\u7f6e\u5df2\u4fdd\u5b58", Toast.LENGTH_SHORT).show();
             }
         });
         LinearLayout.LayoutParams okBtnParams = new LinearLayout.LayoutParams(dp(90), dp(44));
@@ -1691,7 +1687,10 @@ public class MainActivity extends Activity {
         actions.addView(closeButton, new LinearLayout.LayoutParams(-2, dp(38)));
 
         Button selectAllButton = makeCompactPillButton("全选", false);
-        selectAllButton.setOnClickListener(v -> selectionBox.selectAll());
+        selectAllButton.setOnClickListener(v -> {
+            selectionBox.requestFocus();
+            selectionBox.setSelection(0, selectionBox.getText().length());
+        });
         LinearLayout.LayoutParams selectAllParams = new LinearLayout.LayoutParams(-2, dp(38));
         selectAllParams.leftMargin = dp(8);
         actions.addView(selectAllButton, selectAllParams);

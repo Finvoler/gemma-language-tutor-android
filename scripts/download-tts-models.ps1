@@ -10,7 +10,11 @@ try {
 
     $assetsRoot = Join-Path (Get-Location) 'app\src\main\assets'
     $amyTarget = Join-Path $assetsRoot 'tts-model'
-    $kokoroTarget = Join-Path $assetsRoot 'tts-model-kokoro-en'
+
+    $legacyKokoroTarget = Join-Path $assetsRoot 'tts-model-kokoro-en'
+    if (Test-Path $legacyKokoroTarget) {
+        Remove-Item -Recurse -Force $legacyKokoroTarget
+    }
 
     $downloads = @(
         @{
@@ -19,13 +23,6 @@ try {
             Archive = 'vits-piper-en_US-amy-medium.tar.bz2';
             ExtractedDir = 'vits-piper-en_US-amy-medium';
             TargetDir = $amyTarget;
-        },
-        @{
-            Name = 'Kokoro English v0.19';
-            Url = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-en-v0_19.tar.bz2';
-            Archive = 'kokoro-en-v0_19.tar.bz2';
-            ExtractedDir = 'kokoro-en-v0_19';
-            TargetDir = $kokoroTarget;
         }
     )
 
@@ -51,9 +48,8 @@ try {
     }
 
     Write-Host ''
-    Write-Host 'TTS assets are ready:'
+    Write-Host 'Amy TTS assets are ready:'
     Write-Host "  $amyTarget"
-    Write-Host "  $kokoroTarget"
 } finally {
     Pop-Location
 }

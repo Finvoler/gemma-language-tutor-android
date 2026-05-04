@@ -11,7 +11,6 @@ import android.util.Log;
 import com.k2fsa.sherpa.onnx.GeneratedAudio;
 import com.k2fsa.sherpa.onnx.OfflineTts;
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig;
-import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig;
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig;
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig;
 
@@ -34,31 +33,23 @@ public class SherpaOnnxTts {
 
     private static final String TAG = "SherpaOnnxTts";
     private static final int MAX_TOTAL_SPEECH_CHARS_PIPER = 700;
-    private static final int MAX_TOTAL_SPEECH_CHARS_KOKORO = 420;
     private static final int FIRST_CHUNK_CHARS_PIPER = 180;
-    private static final int FIRST_CHUNK_CHARS_KOKORO = 70;
     private static final int NEXT_CHUNK_CHARS_PIPER = 180;
-    private static final int NEXT_CHUNK_CHARS_KOKORO = 110;
 
     public enum VoiceProfile {
-        PIPER_AMY("piper_amy", "Amy (Piper)", false, "tts-model", "en_US-amy-medium.onnx", "", 0),
-        KOKORO_AF_SARAH("kokoro_af_sarah", "af_sarah (Kokoro)", true, "tts-model-kokoro-en", "model.onnx", "voices.bin", 3);
+        PIPER_AMY("piper_amy", "Amy (Piper)", "tts-model", "en_US-amy-medium.onnx", 0);
 
         private final String key;
         private final String displayName;
-        private final boolean kokoro;
         private final String assetDir;
         private final String modelFile;
-        private final String voicesFile;
         private final int speakerId;
 
-        VoiceProfile(String key, String displayName, boolean kokoro, String assetDir, String modelFile, String voicesFile, int speakerId) {
+        VoiceProfile(String key, String displayName, String assetDir, String modelFile, int speakerId) {
             this.key = key;
             this.displayName = displayName;
-            this.kokoro = kokoro;
             this.assetDir = assetDir;
             this.modelFile = modelFile;
-            this.voicesFile = voicesFile;
             this.speakerId = speakerId;
         }
 
@@ -70,20 +61,12 @@ public class SherpaOnnxTts {
             return displayName;
         }
 
-        public boolean isKokoro() {
-            return kokoro;
-        }
-
         public String getAssetDir() {
             return assetDir;
         }
 
         public String getModelFile() {
             return modelFile;
-        }
-
-        public String getVoicesFile() {
-            return voicesFile;
         }
 
         public int getSpeakerId() {
@@ -113,6 +96,8 @@ public class SherpaOnnxTts {
     private Future<?> warmupTask;
     private volatile boolean stopped;
     private volatile VoiceProfile voiceProfile;
+    private float amySpeed = 1.0f;
+    private float amyVivacity = 1.0f;
 
     public SherpaOnnxTts(Context context) {
         this(context, VoiceProfile.PIPER_AMY);
@@ -134,43 +119,39 @@ public class SherpaOnnxTts {
         this.voiceProfile = voiceProfile == null ? VoiceProfile.PIPER_AMY : voiceProfile;
     }
 
+    public synchronized void setAmyStyle(float speed, float vivacity) {
+        float safeSpeed = clamp(speed, 0.75f, 1.35f);
+        float safeVivacity = clamp(vivacity, 0.70f, 1.40f);
+        if (Math.abs(amySpeed - safeSpeed) < 0.001f && Math.abs(amyVivacity - safeVivacity) < 0.001f) {
+            return;
+        }
+        amySpeed = safeSpeed;
+        amyVivacity = safeVivacity;
+        stop();
+        releaseTtsLocked();
+    }
+
     // Lazy-initialize the TTS engine on first use to avoid blocking the UI thread.
     private synchronized OfflineTts getOrInitTts(VoiceProfile profile) {
         if (tts == null || loadedProfile != profile) {
             releaseTtsLocked();
 
-            OfflineTtsModelConfig modelConfig;
             String dataDir = resolveDataDir(profile);
-            if (profile.isKokoro()) {
-                OfflineTtsKokoroModelConfig kokoroConfig = new OfflineTtsKokoroModelConfig();
-                kokoroConfig.setModel(profile.getAssetDir() + "/" + profile.getModelFile());
-                kokoroConfig.setVoices(profile.getAssetDir() + "/" + profile.getVoicesFile());
-                kokoroConfig.setTokens(profile.getAssetDir() + "/tokens.txt");
-                kokoroConfig.setDataDir(dataDir);
-                kokoroConfig.setLengthScale(1.0f);
+            OfflineTtsVitsModelConfig vitsConfig = new OfflineTtsVitsModelConfig();
+            vitsConfig.setModel(profile.getAssetDir() + "/" + profile.getModelFile());
+            vitsConfig.setLexicon("");
+            vitsConfig.setTokens(profile.getAssetDir() + "/tokens.txt");
+            vitsConfig.setDataDir(dataDir);
+            vitsConfig.setDictDir("");
+            vitsConfig.setNoiseScale(clamp(0.667f * amyVivacity, 0.3f, 1.2f));
+            vitsConfig.setNoiseScaleW(clamp(0.8f * amyVivacity, 0.35f, 1.4f));
+            vitsConfig.setLengthScale(clamp(1.0f / amySpeed, 0.72f, 1.45f));
 
-                modelConfig = new OfflineTtsModelConfig();
-                modelConfig.setKokoro(kokoroConfig);
-                modelConfig.setNumThreads(1);
-                modelConfig.setDebug(false);
-                modelConfig.setProvider("cpu");
-            } else {
-                OfflineTtsVitsModelConfig vitsConfig = new OfflineTtsVitsModelConfig();
-                vitsConfig.setModel(profile.getAssetDir() + "/" + profile.getModelFile());
-                vitsConfig.setLexicon("");
-                vitsConfig.setTokens(profile.getAssetDir() + "/tokens.txt");
-                vitsConfig.setDataDir(dataDir);
-                vitsConfig.setDictDir("");
-                vitsConfig.setNoiseScale(0.667f);
-                vitsConfig.setNoiseScaleW(0.8f);
-                vitsConfig.setLengthScale(1.0f);
-
-                modelConfig = new OfflineTtsModelConfig();
-                modelConfig.setVits(vitsConfig);
-                modelConfig.setNumThreads(1);
-                modelConfig.setDebug(false);
-                modelConfig.setProvider("cpu");
-            }
+            OfflineTtsModelConfig modelConfig = new OfflineTtsModelConfig();
+            modelConfig.setVits(vitsConfig);
+            modelConfig.setNumThreads(1);
+            modelConfig.setDebug(false);
+            modelConfig.setProvider("cpu");
 
             OfflineTtsConfig config = new OfflineTtsConfig();
             config.setModel(modelConfig);
@@ -293,7 +274,7 @@ public class SherpaOnnxTts {
     private void warmUpProfile(VoiceProfile profile) {
         try {
             OfflineTts engine = getOrInitTts(profile);
-            engine.generate(profile.isKokoro() ? "Hello." : "Hi.", profile.getSpeakerId(), 1.0f);
+            engine.generate("Hi.", profile.getSpeakerId(), 1.0f);
             warmedProfile = profile;
         } catch (Throwable t) {
             Log.w(TAG, "TTS prewarm failed for " + profile.getKey(), t);
@@ -304,11 +285,8 @@ public class SherpaOnnxTts {
         String cleaned = cleanForSpeech(text);
         List<String> chunks = new ArrayList<>();
         if (cleaned.isEmpty()) return chunks;
-        int maxTotalChars = profile != null && profile.isKokoro()
-                ? MAX_TOTAL_SPEECH_CHARS_KOKORO
-                : MAX_TOTAL_SPEECH_CHARS_PIPER;
-        if (cleaned.length() > maxTotalChars) {
-            cleaned = cleaned.substring(0, maxTotalChars).trim() + ".";
+        if (cleaned.length() > MAX_TOTAL_SPEECH_CHARS_PIPER) {
+            cleaned = cleaned.substring(0, MAX_TOTAL_SPEECH_CHARS_PIPER).trim() + ".";
         }
 
         String[] sentences = cleaned.split("(?<=[.!?。！？])\\s+");
@@ -360,11 +338,7 @@ public class SherpaOnnxTts {
     }
 
     private int getChunkCharLimit(VoiceProfile profile, boolean firstChunk) {
-        boolean kokoro = profile != null && profile.isKokoro();
-        if (firstChunk) {
-            return kokoro ? FIRST_CHUNK_CHARS_KOKORO : FIRST_CHUNK_CHARS_PIPER;
-        }
-        return kokoro ? NEXT_CHUNK_CHARS_KOKORO : NEXT_CHUNK_CHARS_PIPER;
+        return firstChunk ? FIRST_CHUNK_CHARS_PIPER : NEXT_CHUNK_CHARS_PIPER;
     }
 
     private int findBreakPosition(String text, int start, int maxEnd) {
@@ -399,8 +373,8 @@ public class SherpaOnnxTts {
             Log.e(TAG, "getMinBufferSize returned " + minBuf);
             return;
         }
-        // Use MODE_STREAM with a fixed small ring-buffer so arbitrarily long audio
-        // (e.g. 30-second Kokoro output) never exceeds the Android static-buffer limit.
+        // Use MODE_STREAM with a fixed small ring-buffer so longer audio never
+        // exceeds the Android static-buffer limit.
         int bufBytes = Math.max(minBuf * 4, 32768);
 
         AudioTrack track;
@@ -495,5 +469,9 @@ public class SherpaOnnxTts {
         }
         loadedProfile = null;
         warmedProfile = null;
+    }
+
+    private float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
