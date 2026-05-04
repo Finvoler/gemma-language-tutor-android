@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.copilot.gemmatutor'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.copilot.gemmatutor'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    aaptOptions {
+        // sherpa-onnx JNI uses AAsset_getBuffer() which returns NULL for compressed assets.
+        // Model files must be stored uncompressed in the APK.
+        noCompress "onnx", "bin"
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}', '/META-INF/LICENSE*', '/META-INF/NOTICE*']
+        }
+        jniLibs {
+            // Avoid duplicate .so conflicts between jniLibs/ and sherpa-onnx AAR
+            pickFirst '**/libsherpa-onnx-jni.so'
+            pickFirst '**/libonnxruntime.so'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'org.commonmark:commonmark:0.22.0'
+    implementation 'com.google.ai.edge.litertlm:litertlm-android:latest.release'
+    implementation 'com.github.k2-fsa:sherpa-onnx:v1.13.0'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+}

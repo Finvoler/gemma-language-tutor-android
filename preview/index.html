@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemma 语言助手预览</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-state="welcome">
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+    <main class="shell">
+        <section class="intro panel">
+            <p class="eyebrow">Desktop Preview / Gemma 4 E2B</p>
+            <h1>先在电脑上看审美，再同步到手机端。</h1>
+            <p class="lede">
+                这个预览页按你当前 Android App 的信息架构重建，但把层级、留白、按钮质感和过渡做得更完整。
+                你后面只要说哪里丑、哪里太普通、哪里不符合你的审美，我就按这个预览和实际安卓代码一起改。
+            </p>
+
+            <div class="chip-row">
+                <span class="chip">本地 Gemma 4 E2B</span>
+                <span class="chip">图片翻译</span>
+                <span class="chip">语音输入</span>
+                <span class="chip">英语对话训练</span>
+            </div>
+
+            <div class="control-card">
+                <div>
+                    <p class="control-label">预览状态</p>
+                    <p class="control-subtitle">切不同软件场景，直接看界面落点。</p>
+                </div>
+                <div class="segmented" role="tablist" aria-label="软件状态">
+                    <button class="state-pill active" data-state-target="welcome">首次打开</button>
+                    <button class="state-pill" data-state-target="study">学习解析</button>
+                    <button class="state-pill" data-state-target="conversation">英语对话</button>
+                    <button class="state-pill" data-state-target="vision">图片翻译</button>
+                </div>
+            </div>
+
+            <div class="notes-grid">
+                <article class="note-block">
+                    <p class="note-kicker">视觉方向</p>
+                    <h2>暖灰底色 + 深墨绿操作层</h2>
+                    <p>避免泛 AI 紫蓝风，保持更像高端学习工具，而不是通用聊天壳子。</p>
+                </article>
+                <article class="note-block">
+                    <p class="note-kicker">会同步的部分</p>
+                    <h2>头部、消息气泡、底部输入栏、模型下载弹层</h2>
+                    <p>这些都能直接映射回 Android 的 MainActivity 动态布局，不是只做个网页壳子。</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="preview-stage panel">
+            <div class="device-meta">
+                <div>
+                    <p class="meta-label">Live Mock</p>
+                    <p class="meta-value" id="stateTitle">首次打开 / 模型下载引导</p>
+                    <p class="meta-spec">按 Xiaomi 14 官方参数重绘：1200 × 2670，6.36 英寸直屏</p>
+                </div>
+                <div class="status-pair">
+                    <span class="mini-dot"></span>
+                    <span id="stateCaption">还没导入模型时的首页状态。</span>
+                </div>
+            </div>
+
+            <div class="phone-frame">
+                <div class="phone-screen">
+                    <div class="camera-hole"></div>
+                    <div class="app-bg"></div>
+
+                    <header class="app-header">
+                        <button class="nav-button" id="historyToggle">≡</button>
+                        <div class="app-header-copy">
+                            <p class="app-title">Gemma 语言助手</p>
+                            <p class="app-status" id="modelStatus">未导入模型：可先体验界面，AI 生成需导入或下载 Gemma 4 E2B</p>
+                        </div>
+                        <button class="ghost-button header-button">模型</button>
+                    </section>
+
+                    <section class="chat-scroll" id="chatScroll">
+                        <article class="message assistant hero-message">
+                            <p>你好，我是你的本地语言学习助手。导入或下载 Gemma 4 E2B 模型后，我可以离线处理翻译、近义词、图片文字和英语口语练习。</p>
+                        </article>
+
+                        <article class="message user state-welcome state-study state-vision hidden" id="userBubble">
+                            <div class="image-card hidden" id="imageCard">
+                                <div class="image-preview"></div>
+                                <span>menu-photo.jpg</span>
+                            </div>
+                            <p id="userText">把这段英文翻成自然中文，并解释为什么这样表达。</p>
+                        </article>
+
+                        <article class="message assistant state-study state-conversation state-vision hidden" id="assistantBubble">
+                            <p id="assistantText">这里会显示 Gemma 的回答。预览里先用静态文本模拟真实气泡层级和排版。</p>
+                        </article>
+
+                        <article class="message assistant thinking state-study state-vision hidden" id="thinkingBubble">
+                            <div class="typing-line"></div>
+                            <div class="typing-line short"></div>
+                        </article>
+                    </section>
+
+                    <div class="image-banner hidden" id="imageBanner">已选择图片，发送后会识别并翻译图片内容。点清空可重新开始。</div>
+
+                    <footer class="composer-wrap">
+                        <div class="composer-shell">
+                            <textarea class="composer-textarea" id="composerInput" rows="1" placeholder="输入问题或继续追问"></textarea>
+                            <div class="composer-toolbar">
+                                <button class="plus-button" id="plusAction">+</button>
+                                <button class="mini-chip" id="conversationToggle">英语对话</button>
+                                <button class="mini-chip call-chip" id="voiceCallToggle">语音通话</button>
+                                <span class="selected-chip hidden" id="selectedImageChip">图片已选</span>
+                                <span class="toolbar-spacer"></span>
+                                <button class="mic-button" id="voiceAction" aria-label="语音输入">
+                                    <span class="mic-glyph" aria-hidden="true">
+                                        <span class="mic-head"></span>
+                                        <span class="mic-stem"></span>
+                                        <span class="mic-base"></span>
+                                    </span>
+                                </button>
+                                <button class="send-button compact">发送</button>
+                            </div>
+                        </div>
+                    </footer>
+
+                    <section class="overlay active" id="overlay">
+                        <div class="overlay-card">
+                            <p class="overlay-title" id="overlayTitle">需要 Gemma 4 E2B</p>
+                            <p class="overlay-copy" id="overlayCopy">可直接下载 litert-community/gemma-4-E2B-it-litert-lm 的通用 LiteRT-LM 文件，也可以选择你已经下载好的 gemma-4-E2B-it.litertlm。</p>
+                            <button class="send-button wide" id="overlayPrimary">下载 Gemma 4 E2B</button>
+                            <button class="ghost-button wide" id="overlaySecondary">选择本地模型文件</button>
+                        </div>
+                    </section>
+
+                    <section class="sheet hidden" id="actionSheet">
+                        <div class="sheet-backdrop" id="sheetBackdrop"></div>
+                        <div class="sheet-card">
+                            <p class="sheet-kicker">快捷操作</p>
+                            <h3>选择图片来源</h3>
+                            <button class="sheet-option" id="chooseAlbum">
+                                <span class="sheet-option-title">从相册选取</span>
+                                <span class="sheet-option-copy">打开系统相册，选已有图片</span>
+                            </button>
+                            <button class="sheet-option" id="chooseCamera">
+                                <span class="sheet-option-title">直接拍摄</span>
+                                <span class="sheet-option-copy">调用原生相机拍照，再回到对话页</span>
+                            </button>
+                            <button class="ghost-button wide" id="sheetClose">取消</button>
+                        </div>
+                    </section>
+
+                    <section class="history-layer hidden" id="historyLayer">
+                        <div class="sheet-backdrop" id="historyBackdrop"></div>
+                        <aside class="history-panel">
+                            <div class="history-header">
+                                <div>
+                                    <p class="sheet-kicker">聊天历史</p>
+                                    <h3>最近记录</h3>
+                                </div>
+                                <button class="ghost-button history-new" id="newChatButton">新对话</button>
+                            </div>
+                            <div class="history-scroll" id="historyScroll"></div>
+                        </aside>
+                    </section>
+
+                    <section class="confirm-layer hidden" id="confirmLayer">
+                        <div class="sheet-backdrop" id="confirmBackdrop"></div>
+                        <div class="confirm-card">
+                            <p class="sheet-kicker">删除确认</p>
+                            <h3 id="confirmTitle">删除这条记录？</h3>
+                            <p class="confirm-copy" id="confirmCopy">删除后不会影响其他聊天记录，但这条记录本身无法恢复。</p>
+                            <div class="confirm-actions">
+                                <button class="ghost-button wide" id="confirmCancel">取消</button>
+                                <button class="send-button wide destructive" id="confirmDelete">确认删除</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="voice-call-layer hidden" id="voiceCallLayer">
+                        <div class="voice-call-shell">
+                            <div class="voice-call-topbar">
+                                <div>
+                                    <p class="sheet-kicker">语音通话</p>
+                                    <h3>英语口语实时对练</h3>
+                                </div>
+                                <button class="ghost-button history-new" id="voiceCallClose">退出</button>
+                            </div>
+                            <p class="voice-call-status" id="voiceCallStatus">使用本地语音识别 + 本地 TTS。你说完会直接发给 LLM，助手会语音回复。</p>
+                            <div class="voice-call-scroll" id="voiceCallScroll"></div>
+                            <div class="voice-call-dock">
+                                <div class="voice-call-hint">
+                                    <span class="mini-dot call-dot"></span>
+                                    <span id="voiceCallHint">点击下方麦克风开始说话</span>
+                                </div>
+                                <button class="call-mic" id="voiceCallMic" aria-label="开始语音通话">
+                                    <span class="mic-glyph" aria-hidden="true">
+                                        <span class="mic-head"></span>
+                                        <span class="mic-stem"></span>
+                                        <span class="mic-base"></span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="floating-toast hidden" id="toast"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="./app.js"></script>
+</body>
+</html>
