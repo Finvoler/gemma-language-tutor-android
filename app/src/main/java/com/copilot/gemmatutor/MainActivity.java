@@ -488,7 +488,7 @@ public class MainActivity extends Activity {
         topBar.addView(closeButton, new LinearLayout.LayoutParams(-2, dp(36)));
 
         voiceCallStatusView = new TextView(this);
-        voiceCallStatusView.setText("使用本地语音识别 + 本地离线 TTS（当前音色：" + currentTtsVoiceDisplayName() + "）。你说完会直接发给 LLM，助手会语音回复。");
+        voiceCallStatusView.setText(buildVoiceCallStatusText());
         voiceCallStatusView.setTextColor(Color.rgb(111, 107, 93));
         voiceCallStatusView.setTextSize(13);
         voiceCallStatusView.setLineSpacing(dp(4), 1.0f);
@@ -697,9 +697,9 @@ public class MainActivity extends Activity {
         voiceCallOpen = true;
         refreshVoiceCallChip();
         voiceCallOverlay.setVisibility(View.VISIBLE);
-        if (sherpaOnnxTts != null) sherpaOnnxTts.prepare();
+        if (sherpaOnnxTts != null) sherpaOnnxTts.prepare(resolveVoiceCallTtsProfile());
         if (voiceCallStatusView != null) {
-            voiceCallStatusView.setText("使用本地语音识别 + 本地 TTS。你说完会直接发给 LLM，助手会语音回复。");
+            voiceCallStatusView.setText(buildVoiceCallStatusText());
         }
         if (voiceCallHintView != null) {
             voiceCallHintView.setText("点击下方麦克风开始说话");
@@ -1090,13 +1090,21 @@ public class MainActivity extends Activity {
         return resolveSelectedTtsVoiceProfile().getDisplayName();
     }
 
+    private SherpaOnnxTts.VoiceProfile resolveVoiceCallTtsProfile() {
+        return SherpaOnnxTts.VoiceProfile.PIPER_AMY;
+    }
+
+    private String buildVoiceCallStatusText() {
+        return "使用本地语音识别 + 本地离线 TTS。语音通话固定使用 Amy (Piper)，你说完会直接发给 LLM，助手会语音回复。";
+    }
+
     private void applySelectedTtsVoice() {
         if (sherpaOnnxTts != null) {
             sherpaOnnxTts.setVoiceProfile(resolveSelectedTtsVoiceProfile());
-            sherpaOnnxTts.prepare();
+            sherpaOnnxTts.prepare(resolveSelectedTtsVoiceProfile());
         }
         if (voiceCallStatusView != null) {
-            voiceCallStatusView.setText("使用本地语音识别 + 本地离线 TTS（当前音色：" + currentTtsVoiceDisplayName() + "）。你说完会直接发给 LLM，助手会语音回复。");
+            voiceCallStatusView.setText(buildVoiceCallStatusText());
         }
     }
 
@@ -1522,6 +1530,11 @@ public class MainActivity extends Activity {
         sherpaOnnxTts.speak(text);
     }
 
+    private void speak(String text, SherpaOnnxTts.VoiceProfile profile) {
+        if (sherpaOnnxTts == null || text == null || text.trim().isEmpty()) return;
+        sherpaOnnxTts.speak(text, profile);
+    }
+
     private void addUserMessage(String text, Bitmap bitmap) {
         LinearLayout row = messageRow(true);
         LinearLayout bubble = messageBubble(true);
@@ -1586,46 +1599,132 @@ public class MainActivity extends Activity {
     }
 
     private void configureSelectableMessageText(TextView view) {
-        view.setTextIsSelectable(true);
+        view.setTextIsSelectable(false);
         view.setLongClickable(true);
-        view.setFocusable(true);
-        view.setFocusableInTouchMode(true);
-        view.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
+        view.setOnLongClickListener(v -> {
+            CharSequence content = view.getText();
+            if (content == null || content.length() == 0) {
+                return true;
+            }
+            showCopySelectionDialog(content.toString());
+            return true;
+        });
+    }
+
+    private void showCopySelectionDialog(String rawText) {
+        AlertDialog dialog = new AlertDialog.Builder(this).create();
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(20), dp(20), dp(20), dp(18));
+        panel.setBackground(makeRoundBg(Color.rgb(255, 251, 245), dp(26), Color.rgb(225, 216, 201), 1));
+
+        TextView title = new TextView(this);
+        title.setText("文本选择");
+        title.setTextColor(Color.rgb(36, 53, 47));
+        title.setTextSize(18);
+        title.setTypeface(uiMediumTypeface);
+        panel.addView(title, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView hint = new TextView(this);
+        hint.setText("拖动选区后，使用下面的自定义按钮复制或全选。长文本会保留滚动。 ");
+        hint.setTextColor(Color.rgb(111, 107, 93));
+        hint.setTextSize(12);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(-1, -2);
+        hintParams.topMargin = dp(6);
+        panel.addView(hint, hintParams);
+
+        EditText selectionBox = new EditText(this);
+        selectionBox.setText(rawText);
+        selectionBox.setTextColor(Color.rgb(35, 43, 39));
+        selectionBox.setTextSize(15);
+        selectionBox.setTypeface(uiRegularTypeface);
+        selectionBox.setLineSpacing(dp(3), 1.0f);
+        selectionBox.setPadding(dp(14), dp(14), dp(14), dp(14));
+        selectionBox.setGravity(Gravity.START | Gravity.TOP);
+        selectionBox.setMinLines(6);
+        selectionBox.setMaxLines(10);
+        selectionBox.setVerticalScrollBarEnabled(true);
+        selectionBox.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        selectionBox.setBackground(makeRoundBg(Color.WHITE, dp(18), Color.rgb(214, 205, 189), 1));
+        selectionBox.setShowSoftInputOnFocus(false);
+        selectionBox.setCursorVisible(false);
+        selectionBox.setTextIsSelectable(true);
+        selectionBox.setLongClickable(true);
+        selectionBox.setFocusable(true);
+        selectionBox.setFocusableInTouchMode(true);
+        selectionBox.setKeyListener(null);
+        selectionBox.setCustomSelectionActionModeCallback(new ActionMode.Callback() {
             @Override
             public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-                filterMessageSelectionMenu(menu);
+                menu.clear();
                 return true;
             }
 
             @Override
             public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
-                filterMessageSelectionMenu(menu);
+                menu.clear();
                 return true;
             }
 
             @Override
             public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
-                if (item.getItemId() == android.R.id.copy) {
-                    mainHandler.post(() -> showCopySuccessToast("复制成功"));
-                }
-                return false;
+                return true;
             }
 
             @Override
             public void onDestroyActionMode(ActionMode mode) {
             }
         });
-    }
+        LinearLayout.LayoutParams boxParams = new LinearLayout.LayoutParams(-1, -2);
+        boxParams.topMargin = dp(12);
+        panel.addView(selectionBox, boxParams);
 
-    private void filterMessageSelectionMenu(Menu menu) {
-        for (int i = menu.size() - 1; i >= 0; i--) {
-            MenuItem item = menu.getItem(i);
-            int itemId = item.getItemId();
-            boolean keep = itemId == android.R.id.copy || itemId == android.R.id.selectAll;
-            if (!keep) {
-                menu.removeItem(itemId);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(-1, -2);
+        actionsParams.topMargin = dp(14);
+        panel.addView(actions, actionsParams);
+
+        Button closeButton = makeCompactPillButton("关闭", false);
+        closeButton.setOnClickListener(v -> dialog.dismiss());
+        actions.addView(closeButton, new LinearLayout.LayoutParams(-2, dp(38)));
+
+        Button selectAllButton = makeCompactPillButton("全选", false);
+        selectAllButton.setOnClickListener(v -> selectionBox.selectAll());
+        LinearLayout.LayoutParams selectAllParams = new LinearLayout.LayoutParams(-2, dp(38));
+        selectAllParams.leftMargin = dp(8);
+        actions.addView(selectAllButton, selectAllParams);
+
+        Button copyButton = makeCompactPillButton("复制", true);
+        copyButton.setOnClickListener(v -> {
+            int start = Math.max(0, selectionBox.getSelectionStart());
+            int end = Math.max(0, selectionBox.getSelectionEnd());
+            int from = Math.min(start, end);
+            int to = Math.max(start, end);
+            String copied = from < to
+                    ? selectionBox.getText().subSequence(from, to).toString()
+                    : selectionBox.getText().toString();
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+            if (cm != null && !copied.isEmpty()) {
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("message", copied));
+                showCopySuccessToast("复制成功");
             }
+            dialog.dismiss();
+        });
+        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(-2, dp(38));
+        copyParams.leftMargin = dp(8);
+        actions.addView(copyButton, copyParams);
+
+        applyTypefaceRecursively(panel);
+        dialog.setView(panel);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
+        selectionBox.post(() -> selectionBox.setSelection(selectionBox.getText().length()));
     }
 
     private void showCopySuccessToast(String message) {
@@ -1675,7 +1774,7 @@ public class MainActivity extends Activity {
             if (voiceCallOpen && voiceCallStatusView != null) {
                 voiceCallStatusView.setText("这一轮已经自动完成：语音识别 -> 直接发送 -> 文本显示 -> 本地 TTS 播放。");
             }
-            if (voiceCallOpen) speak(finalAnswer);
+            if (voiceCallOpen) speak(finalAnswer, resolveVoiceCallTtsProfile());
         });
     }
 

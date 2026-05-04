@@ -244,7 +244,11 @@ public class SherpaOnnxTts {
     }
 
     public synchronized void prepare() {
-        VoiceProfile profile = voiceProfile;
+        prepare(voiceProfile);
+    }
+
+    public synchronized void prepare(VoiceProfile requestedProfile) {
+        VoiceProfile profile = requestedProfile == null ? voiceProfile : requestedProfile;
         if (profile == null) {
             profile = VoiceProfile.PIPER_AMY;
         }
@@ -260,12 +264,17 @@ public class SherpaOnnxTts {
 
     /** Speak the given text asynchronously. Cancels any ongoing speech first. */
     public void speak(String text) {
+        speak(text, null);
+    }
+
+    public void speak(String text, VoiceProfile requestedProfile) {
         if (text == null || text.trim().isEmpty()) return;
         stop();
         stopped = false;
+        VoiceProfile resolvedProfile = requestedProfile == null ? voiceProfile : requestedProfile;
         currentTask = executor.submit(() -> {
             try {
-                VoiceProfile profile = voiceProfile;
+                VoiceProfile profile = resolvedProfile == null ? VoiceProfile.PIPER_AMY : resolvedProfile;
                 OfflineTts engine = getOrInitTts(profile);
                 List<String> chunks = splitForSpeech(text, profile);
                 for (String chunk : chunks) {
